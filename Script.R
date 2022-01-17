@@ -55,6 +55,9 @@ bptest(model_fd) #no heteroskedasticity
 #Serial correlation
 pbgtest(model_fd) #still serial correlation present
 
+#Clustered robust standard errors
+coeftest(model_fd,vcov=vcovHC(model_fd,type = "HC0",cluster = "group"))
+
 ####################################
 ### Bonus (does not work yet :/) ###
 ####################################
