@@ -1,76 +1,73 @@
 #Importing the data set
 library(readr)
-owid_covid_data <- read_csv("owid-covid-data.csv")
-owid_covid_data<-as.data.frame(owid_covid_data)
-
-#Extracting relevant columns
-dataset <- owid_covid_data[,c(1,3,4,6,26,39,49,51,54)]
-
-#Filtering out non-countries
-dataset_filtered <- dataset[!dataset$location %in% c("Africa","Asia","European Union","Europe","High income","International",
-                                            "Lower middle income","Low income","North America","Soouth Africa","South America",
-                                            "Upper middle income","World"),]
-
-#Aggregating the daily data to monthly data
-#Writing a function to sum properly
-proper_sum <- function(x){
-  if (all(is.na(x))){
-    value <- NA
-  } else {
-    value <- sum(x,na.rm=T)
-  }
-  return(value)
-}
-#Extracting the month and year for aggregation
-dataset_filtered$month <- months(dataset_filtered$date)
-dataset_filtered$year <- as.numeric(format(dataset_filtered$date,"%Y"))
-
-#Aggregation using the dplyr package
-library(dplyr)
-dataset_monthly <- dataset_filtered %>%
-  group_by(location,month,year) %>%
-  summarise(new_cases=proper_sum(new_cases),new_tests=proper_sum(new_tests),new_vaccinations=proper_sum(new_vaccinations),
-            population=unique(population), median_age=unique(median_age),gdp_per_capita=unique(gdp_per_capita))
-
-#Adding back the date (time dimension)
-dataset_monthly$date<-as.Date(paste("01",dataset_monthly$month,dataset_monthly$year),"%d %B %Y")
-
-#Adjusting the data set
-dataset_semifinal<-dataset_monthly[,c(1,10,4:9)]
-dataset_semifinal<-dataset_semifinal[order(dataset_semifinal$location,dataset_semifinal$date),]
+dataset <- read_csv("dataset.csv")
+dataset <- as.data.frame(dataset)
 
 #Inspecting the data set
-summary(dataset_semifinal)
-dataset_semifinal$new_cases[dataset_semifinal$new_cases<0]<-NA #Negative cases do not make sense
+summary(dataset)
+dataset$new_cases[dataset$new_cases<0]<-NA #Negative cases do not make sense
 
 #Histograms
-hist(dataset_semifinal$new_cases) #Extremely skewed
-hist(log(dataset_semifinal$new_cases+1)) #A bit better, need to add a constant due to zeros
+hist(dataset$new_cases) #Extremely skewed
+hist(log(dataset$new_cases+1)) #A bit better, need to add a constant due to zeros
 
-hist(dataset_semifinal$new_tests) #Heavily skewed
-hist(log(dataset_semifinal$new_tests))
+hist(dataset$new_tests) #Heavily skewed
+hist(log(dataset$new_tests))
 
-hist(dataset_semifinal$new_vaccinations) #Skeeeewed
-hist(log(dataset_semifinal$new_vaccinations+1)) #A lot better
+hist(dataset$new_vaccinations) #Skeeeewed
+hist(log(dataset$new_vaccinations+1)) #A lot better
+
+hist(dataset$avg_temp) #A bit left-skewed
+
+#Transforming the variables accordingly
+dataset$log_new_cases <- log(dataset$new_cases+1)
+dataset$log_new_tests <- log(dataset$new_tests)
+dataset$log_new_vaccinations <- log(dataset$new_vaccinations+1)
+
+#Correlation matrix
+cor_mat<-cor(dataset[,c(3,4,5,9)],use="pairwise.complete.obs")
 
 #Preliminary analysis
 library(plm)
-model <- plm(log(new_cases+1)~lag(log(new_cases+1),1)+lag(log(new_tests),0:1)+lag(log(new_vaccinations+1),0:4),data=dataset_semifinal,
-             model="within",effect = "twoways",index=c("location","date"))
-summary(model) 
+model_fe <- plm(log_new_cases~log_new_tests+lag(log_new_vaccinations,0:3)+avg_temp,
+             data=dataset,model="within",effect = "twoways",index=c("location","date"))
+summary(model_fe) 
 
 #Heteroskedasticity
 library(lmtest)
-bptest(model)
+bptest(model_fe)
 
 #Serial correlation
-pbgtest(model)
+pbgtest(model_fe) #serial correlation evidence
 
 #Clustered robust standard errors
 library(sandwich)
-coeftest(model,vcov=vcovHC(model,type = "HC0",cluster = "group"))
+coeftest(model_fe,vcov=vcovHC(model_fe,type = "HC0",cluster = "group"))
+
+#First-differencing
+model_fd <- plm(log_new_cases~log_new_tests+lag(log_new_vaccinations,0:3)+avg_temp,
+                data=dataset,model="fd",effect = "individual",index=c("location","date"))
+summary(model_fd) 
+
+#Heteroskedasticity
+bptest(model_fd) #no heteroskedasticity
+
+#Serial correlation
+pbgtest(model_fd) #still serial correlation present
+
+####################################
+### Bonus (does not work yet :/) ###
+####################################
 
 #Difference GMM (lag is very significant => dynamic panel data analysis)
-diff_model<-pgmm(log(new_cases+1)~lag(log(new_cases+1),1)+log(new_tests)+log(new_vaccinations+1)|lag(log(new_cases+1),2:10),
-                 data=dataset_semifinal,effect = "twoways",model=c("twosteps"),transformation = "d",index=c("location","date"))
-summary(diff_model) #System is computationally singlar when I add vaccinations
+diff_model<-pgmm(log_new_cases~lag(log_new_cases,1)+new_vaccinations|lag(log_new_cases,2:99),
+                 data=dataset,effect = "twoways",model=c("twosteps"),transformation = "d",index=c("location","date"))
+summary(diff_model) #System is computationally singular when I add vaccinations
+mtest(diff_model,2)
+
+library(pdynmc)
+model_pdynmc<-pdynmc(dat=dataset,varname.i = "location",varname.t = "date",use.mc.diff = T,use.mc.lev = F,include.y = T,
+                     varname.y = "log_new_cases",lagTerms.y = 2,maxLags.y = 10,fur.con = TRUE, fur.con.diff = TRUE, fur.con.lev = FALSE,
+                     varname.reg.fur = c("log_new_tests","log_new_vaccinations","avg_temp"),lagTerms.reg.fur = c(1,4,0),
+                     include.dum = T,col_tol = 0.99,opt.meth = "none",use.mc.nonlin = F,dum.diff = T,varname.dum = "date",
+                     dum.lev = F)
