@@ -40,44 +40,54 @@ cor_mat<-cor(dataset[,c(13:15,9)],use="pairwise.complete.obs")
 ### Analysis ###
 ################
 
+#Testing for individual and time effects
+library(plm)
+plmtest(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
+        data=dataset,index=c("location","date"),effect = "individual") #Individual effects significant
+plmtest(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
+        data=dataset,index=c("location","date"),effect = "time") #Time effects significant
+pFtest(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
+       data=dataset,index=c("location","date"),effect = "individual") #Individual effects significant
+pFtest(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
+       data=dataset,index=c("location","date"),effect = "time") #Time effects significant
+
+#Hausman test (RE vs FE model)
+phtest(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
+       data=dataset,index=c("location","date"),effect = "twoways") #RE is inconsistent
+
 #Pooling model
 pooled_model <- plm(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
                     data=dataset,model="pooling",effect = "twoways",index=c("location","date"))
 summary(pooled_model)
-
-#Hausman
-library(plm)
-phtest(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,data=dataset)
 
 #Random-effects
 model_random <- plm(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
                     data=dataset,model="random",effect = "twoways",index=c("location","date"))
 summary(model_random)
 
-#Heteroskedasticity
-library(lmtest)
-bptest(model_random) #No heteroskedasticity
+#####################
+### Fixed-effects ###
+#####################
 
-#Serial correlation
-pbgtest(model_random) #serial correlation evidence
-
-#Clustered robust standard errors
-library(sandwich)
-coeftest(model_random,vcov=vcovHC(model_random,type = "HC0",cluster = "group"))
-
-#Fixed-effects
 model_fe <- plm(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
-             data=dataset,model="within",effect = "twoways",index=c("location","date"))
+                data=dataset,model="within",effect = "twoways",index=c("location","date"))
 summary(model_fe) 
 
 #Heteroskedasticity
-bptest(model_fe)
+library(lmtest)
+bptest(model_fe) #No heteroskedasticity
 
 #Serial correlation
 pbgtest(model_fe) #serial correlation evidence
+pwartest(model_fe) #serial correlation evidence (test for short FE panels)
+pwfdtest(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
+         data=dataset,index=c("location","date")) #serial correlation in differenced errors
+
+#Cross-sectional dependence
+pcdtest(model_fe) #No hard evidence (many countries skipped)
 
 #Clustered robust standard errors
-coeftest(model_fe,vcov=vcovHC(model_fe,type = "HC0",cluster = "group"))
+summary(model_fe,vcov=vcovHC(model_fe,method="arellano",cluster="group")) 
 
 #First-differencing
 model_fd <- plm(log_new_cases_per_thousand~log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
@@ -91,14 +101,19 @@ bptest(model_fd) #no heteroskedasticity
 pbgtest(model_fd) #still serial correlation present
 
 #Clustered robust standard errors
-coeftest(model_fd,vcov=vcovHC(model_fd,type = "HC0",cluster = "group"))
+coeftest(model_fd,vcov=vcovHC(model_fd,method="arellano",cluster = "group"))
 
-####################################
-### Bonus (does not work yet :/) ###
-####################################
+##################################################################################
+### Bonus (cannot add vaccinations => system becomes computationally singular) ###
+##################################################################################
 
 #Difference GMM (lag is very significant => dynamic panel data analysis)
-diff_model<-pgmm(log_new_cases_per_thousand~lag(log_new_cases_per_thousand,1)+lag(new_vaccinations_per_thousand,1:4)+log_new_tests_per_thousand+avg_temp|lag(log_new_cases_per_thousand,2:10),
+diff_model<-pgmm(log_new_cases_per_thousand~lag(log_new_cases_per_thousand,1:2)+lag(log_new_tests_per_thousand,0:1)|lag(log_new_cases_per_thousand,3:7),
                  data=dataset,effect = "twoways",model=c("twosteps"),transformation = "d",index=c("location","date"))
-summary(diff_model) #System is computationally singular when I add vaccinations
-mtest(diff_model,2)
+summary(diff_model) #Sargan high but not too high (very good)
+mtest(diff_model,3) #No third order serial correlation => instruments valid
+
+#Sensitivity of the fixed effects model to the inclusion of a lag
+model_fe_sens <- plm(log_new_cases_per_thousand~lag(log_new_cases_per_thousand,1:2)+log_new_tests_per_thousand+lag(log_new_vaccinations_per_thousand,0:3)+avg_temp,
+                data=dataset,model="within",effect = "twoways",index=c("location","date"))
+summary(model_fe_sens,vcov=vcovHC(model_fe,method="arellano",cluster="group")) 
