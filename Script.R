@@ -19,8 +19,7 @@ dataset$new_vaccinations_per_thousand<-dataset$new_vaccinations/(dataset$populat
 dataset$new_tests_per_thousand<-dataset$new_tests/(dataset$population/1000)
 
 #Histograms
-#Defining a trimming function to make the histograms nicer
-trim <- function(x){
+trim <- function(x){#Defining a trimming function to make the histograms nicer
   x[(x > quantile(x, 0.25,na.rm=T)-1.5*IQR(x,na.rm=T)) & (x < quantile(x, 0.75,na.rm=T)+1.5*IQR(x,na.rm=T))]
 }
 
@@ -40,9 +39,6 @@ hist(trim(dataset$avg_temp),border=F,col="grey",main = "Average temperature",xla
 dataset$log_new_cases_per_thousand <- log(dataset$new_cases_per_thousand+min(dataset$new_cases_per_thousand[dataset$new_cases_per_thousand>0],na.rm = T))
 dataset$log_new_tests_per_thousand <- log(dataset$new_tests_per_thousand)
 dataset$log_new_vaccinations_per_thousand <- log(dataset$new_vaccinations+min(dataset$new_vaccinations_per_thousand[dataset$new_vaccinations_per_thousand>0],na.rm = T))
-
-#Retaining only relevant columns for brevity
-dataset_final<-dataset[,c(1,2,13:15,9)]
 
 #Descriptive statistics
 library(stargazer)
