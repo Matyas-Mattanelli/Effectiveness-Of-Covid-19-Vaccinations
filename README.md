@@ -1,27 +1,7 @@
-### Alternative topics
-
-- Renewable energy
-
-- Impact of covid on government spending/natality
-
-- Determinants of energy prices
-
-- Impact of covid on travelling
-
-
-
 ### Impact of vaccination rates on the number of cases
 
-- control variables: seasons (time dummies), median age, average temperature, population density, number of tests
-- dataset:
-  -  https://ourworldindata.org/covid-vaccinations?country=OWID_WRL
-  - https://github.com/owid/covid-19-data/tree/master/public/data
-- article that uses OLS: https://www.mdpi.com/1660-4601/18/2/674/htm
-- interesting article: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0241165
-- another interesting article: https://www.medrxiv.org/content/10.1101/2020.04.17.20069708v2
-- Notes: 
-  - Watch out for the measurement error (endogeneity)
-  - possibly include lags?
-  - I have not found any panel data analysis of the issue
-  - We cannot include any time-invariant variables so we need to come up with some time-varying controls
-  - average temperature would be nice but it is difficult to get the data
+- The aim of this project is to analyze the effects of the number of newly vaccinated on the number of new cases of Covid-19. For this purpose, we utilize a data set covering 103 countries
+  with monthly observations between December 2020 and December 2021. By estimating a dynamic panel data model with the Difference and System GMM estimators we find that vaccinations appear to affect the number of new cases with a one month lag. The relationship seems to be negative and statistically significant.
+- The complete analysis is available in [Analysis.pdf](Analysis.pdf)
+- The R code with the estimation is available in [Analysis.R](code/Analysis.R)
+- The compiled data set can be found in [dataset.csv](data/dataset.csv)

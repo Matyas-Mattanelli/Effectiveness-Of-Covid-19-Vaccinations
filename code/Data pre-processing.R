@@ -4,7 +4,7 @@
 
 #Importing the covid data set
 library(readr)
-owid_covid_data <- read_csv("owid-covid-data.csv")
+owid_covid_data <- read_csv("data/owid-covid-data.csv")
 owid_covid_data<-as.data.frame(owid_covid_data)
 
 #Extracting relevant columns
@@ -59,7 +59,7 @@ dataset_semifinal<-dataset_semifinal[order(dataset_semifinal$location,
                                            dataset_semifinal$date),]
 
 #Loading average temperature
-avg_temp <- read_csv('avg_temp.csv')
+avg_temp <- read_csv('data/avg_temp.csv')
 
 #Converting months to dates
 avg_temp$date <- as.Date(paste("01",avg_temp$Month,
@@ -136,4 +136,4 @@ dataset_semifinal2<-merge(dataset_semifinal,avg_temp_final2,
                           by=c("location","date"),all.x = T)
 
 #Exporting the data set
-write_csv(dataset_semifinal2,"dataset.csv")
+write_csv(dataset_semifinal2,"data/dataset.csv")

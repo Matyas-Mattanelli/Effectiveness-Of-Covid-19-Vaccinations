@@ -1,6 +1,6 @@
 #Importing the data set
 library(readr)
-dataset <- read_csv("dataset.csv")
+dataset <- read_csv("data/dataset.csv")
 dataset <- as.data.frame(dataset)
 
 #######################
